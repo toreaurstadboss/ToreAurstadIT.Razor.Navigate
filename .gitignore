@@ -1,0 +1,49 @@
+# use glob syntax
+syntax: glob
+
+# Ignore Visual Studio 2008 files
+*.obj
+*.exe
+*.pdb
+*.user
+*.aps
+*.pch
+*.vspscc
+*_i.c
+*_p.c
+*.ncb
+*.suo
+*.tlb
+*.tlh
+*.bak
+*.cache
+*.ilk
+*.log
+*.lib
+*.sbr
+*.scc
+[Bb]in
+[Dd]ebug*/
+obj/
+[Rr]elease*/
+_ReSharper*/
+[Tt]est[Rr]esult*
+[Bb]uild[Ll]og.*
+*.[Pp]ublish.xml
+.lastTfsChangeSet
+Source/packages
+
+# Specific ignore for 
+Source/packages
+Source/deploy/msbuild
+*.ncrunchproject
+*.ncrunchsolution
+sqltool/*.xml
+/Source/.vs/config/applicationhost.config
+.vs
+**/.vs
+
+
+# Merge residue
+*.orig
+
