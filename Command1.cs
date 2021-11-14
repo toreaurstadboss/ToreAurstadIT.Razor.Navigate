@@ -1,8 +1,10 @@
-﻿using Microsoft.VisualStudio.Shell;
+﻿using Community.VisualStudio.Toolkit;
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using System;
 using System.ComponentModel.Design;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Task = System.Threading.Tasks.Task;
@@ -86,11 +88,40 @@ namespace ToreAurstadIT.Razor.Navigate
         /// </summary>
         /// <param name="sender">Event sender.</param>
         /// <param name="e">Event args.</param>
-        private void Execute(object sender, EventArgs e)
+        private async void Execute(object sender, EventArgs e)
         {
-            ThreadHelper.ThrowIfNotOnUIThread();
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             string message = string.Format(CultureInfo.CurrentCulture, "Inside {0}.MenuItemCallback()", this.GetType().FullName);
             string title = "Command1";
+
+            DocumentView docView = await VS.Documents.GetActiveDocumentViewAsync();
+            if (docView?.TextView == null)
+                return; 
+            var selection = docView.TextView.Selection;
+            if (selection.IsEmpty)
+            {
+                return;
+            }
+            foreach (var snapshotSpan in selection.SelectedSpans)
+            {
+                string textOfSelection = snapshotSpan.GetText();
+                if (string.IsNullOrWhiteSpace(textOfSelection))
+                {
+                    continue;
+                }
+                if (textOfSelection.Contains("@Html.Partial"))
+                {
+                    var pattern = @".*@Html.Partial\(""(?<razorfile>.*)""\).*";
+                    Match m = Regex.Match(textOfSelection, pattern, RegexOptions.IgnoreCase);
+                    if (m.Success)
+
+                        if (m.Groups["razorfile"]?.Value != null)
+                        {
+                            await VS.StatusBar.ShowMessageAsync($"You selected this razor file: {textOfSelection}");
+                        }
+                }
+            }
+
 
             // Show a message box to prove we were here
             VsShellUtilities.ShowMessageBox(
