@@ -117,83 +117,11 @@ namespace ToreAurstadIT.Razor.Navigate
                 }
                 if (textOfSelection.Contains("@Html.Partial"))
                 {
-                    var pattern = @".*@Html.Partial\(""(?<razorfile>.*)""\).*";
-                    Match m = Regex.Match(textOfSelection, pattern, RegexOptions.IgnoreCase);
-                    if (m.Success)
-
-                        if (m.Groups["razorfile"]?.Value != null)
-                        {
-                            string razorFileReference = m.Groups["razorfile"].Value;
-
-                            if (!razorFileReference.EndsWith(".vbhml") && !razorFileReference.EndsWith(".cshtml"))
-                            {
-                                razorFileReference += ".cshtml"; //for now - only supporting cshtml files - need to inspect if the solution is using either CS or VB
-                            }
-
-                            if (razorFileReference.Contains("~"))
-                            {
-                                razorFileReference = razorFileReference.Replace("~", "");
-                            }
-                            if (razorFileReference.Contains("/"))
-                            {
-                                razorFileReference = razorFileReference.Split('/').Last(); //only after the file name
-                            }
-                            if (razorFileReference.Contains(".."))
-                            {
-                                razorFileReference = razorFileReference.Replace("..", "");
-                            }
-
-                            if (currentSolution != null)
-                            {
-                                string fullPathOfSolution = currentSolution.FullPath;
-                                //scan for a file with matching file name (we already know it must be a cshtml or vbhtml file)
-                                string[] foundFiles = Directory.GetFiles(new FileInfo(fullPathOfSolution).Directory.FullName, $"{razorFileReference}", SearchOption.AllDirectories);
-                                if (foundFiles?.Length > 0)
-                                {
-                                    string fileToOpen = foundFiles[0]; 
-                                    if (Path.GetExtension(fileToOpen)?.ToLower() != ".cshtml" && Path.GetExtension(fileToOpen)?.ToLower() != ".vbhtml")
-                                    {
-                                        return;
-                                    }
-                                    //on final check that the file exists on disk 
-
-                                    if (!File.Exists(fileToOpen))
-                                    {
-                                        return; 
-                                    }
-
-                                    // also : check that we are permitted to open the file 
-
-                                    bool isFileAccessible = false; 
-                                    try
-                                    {
-                                        _ = File.ReadAllText(fileToOpen);
-                                        isFileAccessible = true;
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        await VS.StatusBar.ShowMessageAsync($"Could not access the file {fileToOpen}. Reason: {ex.Message}");
-                                    }
-
-                                    if (!isFileAccessible)
-                                        return;
-
-                                    //just open the first matching razor file name for simplicity
-                                    bool isPartialViewAlreadyOpen = await VS.Documents.IsOpenAsync(foundFiles[0]);
-                                    if (!isPartialViewAlreadyOpen)
-                                    {
-                                        await VS.Documents.OpenAsync(foundFiles[0]);
-                                    }
-                                    else
-                                    {
-                                        await VS.Documents.OpenAsync(foundFiles[0]); //select document - set is as active as it is already opened ? 
-                                    }
-
-                                    await VS.StatusBar.ShowMessageAsync($"Navigated to razor file: {foundFiles[0]}");
-
-                                }
-                            }
-                        }
+                    await ProcessHtmlPartialAsync(currentSolution, textOfSelection);
+                }
+                else if (textOfSelection.Contains(@"Html.RenderPartial"))
+                {
+                    await ProcessRenderPartialAsync(currentSolution, textOfSelection);
                 }
             }
 
@@ -207,5 +135,254 @@ namespace ToreAurstadIT.Razor.Navigate
             //    OLEMSGBUTTON.OLEMSGBUTTON_OK,
             //    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
         }
+
+        // Read the contents of the file.  
+        static string GetFileText(string fileName)
+        {
+            string fileContents = String.Empty;
+
+            // If the file has been deleted since we took
+            // the snapshot, ignore it and return the empty string.  
+            if (System.IO.File.Exists(fileName))
+            {
+                fileContents = System.IO.File.ReadAllText(fileName);
+            }
+            return fileContents;
+        }
+
+        static string ResolveConstant(string constantExpression, Solution solution)
+        {
+            if (constantExpression.Contains("."))
+            {
+                constantExpression = constantExpression.Split('.').Last(); //we are after the member const - peel off class part
+            }
+            var fileWithConstantExpression =
+                (from file
+                in Directory.GetFiles(new FileInfo(solution.FullPath).Directory.FullName, "*.cs", SearchOption.AllDirectories)
+                where GetFileText(file).Contains(constantExpression)
+                select GetFileText(file)).FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(fileWithConstantExpression))
+            {
+                string pattern = $".*{constantExpression}.*(?<constantvalue>);";
+                Match m = Regex.Match(fileWithConstantExpression, pattern, RegexOptions.IgnoreCase);
+                if (m.Success && m.Groups.Count > 0)
+                {
+                    //TODO: Rewrite - need an easier way to express this - multiple replaces
+                    string constantValue = m.Groups[0].Value;
+                    if (constantValue != null)
+                    {
+                        if (constantValue.Contains("="))
+                        {
+                            constantValue = constantValue.Split('=').Last();                            
+                        }
+                        if (constantValue.Contains("~")){
+                            constantValue = constantValue.Replace("~", "");
+                        }
+                        if (constantValue.Contains(".."))
+                        {
+                            constantValue = constantValue.Replace("..", "");
+                        }
+                        if (constantValue.Contains("/"))
+                        {
+                            constantValue = constantValue.Split('/').Last(); 
+                        }
+                        if (constantValue.Contains("\""))
+                        {
+                            constantValue = constantValue.Replace("\"", string.Empty);
+                        }
+                        if (constantValue.Contains(";"))
+                        {
+                            constantValue = constantValue.Replace(";", "");
+                        }
+
+                        return constantValue.Trim();
+                    }
+                }
+            }
+            return null;
+        }
+    
+    private static async Task ProcessRenderPartialAsync(Solution currentSolution, string textOfSelection)
+        {
+            //TODO: we should also support the case where we do not pass in const expressions, i.e double quotes are present
+
+            var pattern = @".*Html.RenderPartial\((?<razorfile>.*),.*";
+            Match m = Regex.Match(textOfSelection, pattern, RegexOptions.IgnoreCase);
+            if (m.Success)
+
+                if (m.Groups["razorfile"]?.Value != null)
+                {
+                    string razorFileReference = m.Groups["razorfile"].Value;
+
+                    //TODO: only add extension if it is not a constant - 
+                    //a constant is missing double quotes, so we should not add to its path but resolve the constant (via file search)
+
+                    //if (!razorFileReference.EndsWith(".vbhml") && !razorFileReference.EndsWith(".cshtml"))
+                    //{
+                    //    razorFileReference += ".cshtml"; //for now - only supporting cshtml files - need to inspect if the solution is using either CS or VB
+                    //}
+
+                    if (razorFileReference.Contains("~"))
+                    {
+                        razorFileReference = razorFileReference.Replace("~", "");
+                    }
+                    if (razorFileReference.Contains("/"))
+                    {
+                        razorFileReference = razorFileReference.Split('/').Last(); //only after the file name
+                    }
+                    if (razorFileReference.Contains(".."))
+                    {
+                        razorFileReference = razorFileReference.Replace("..", "");
+                    }
+
+                    if (currentSolution != null)
+                    {
+                        string fullPathOfSolution = currentSolution.FullPath;
+
+                        //the constant must now be resolved (we passed in to RenderPartial not the " sign so we must have a constant
+                        string foundConstantValue = ResolveConstant(razorFileReference, currentSolution);
+                        if (!string.IsNullOrEmpty(foundConstantValue))
+                        {
+                            razorFileReference = foundConstantValue;
+                        }
+
+
+                        //scan for a file with matching file name (we already know it must be a cshtml or vbhtml file)
+                        string[] foundFiles = Directory.GetFiles(new FileInfo(fullPathOfSolution).Directory.FullName, $"{razorFileReference}", SearchOption.AllDirectories);
+                        if (foundFiles?.Length > 0)
+                        {
+                            string fileToOpen = foundFiles[0];
+                            if (Path.GetExtension(fileToOpen)?.ToLower() != ".cshtml" && Path.GetExtension(fileToOpen)?.ToLower() != ".vbhtml")
+                            {
+                                return;
+                            }
+                            //on final check that the file exists on disk 
+
+                            if (!File.Exists(fileToOpen))
+                            {
+                                return;
+                            }
+
+                            // also : check that we are permitted to open the file 
+
+                            bool isFileAccessible = false;
+                            try
+                            {
+                                _ = File.ReadAllText(fileToOpen);
+                                isFileAccessible = true;
+                            }
+                            catch (Exception ex)
+                            {
+                                await VS.StatusBar.ShowMessageAsync($"Could not access the file {fileToOpen}. Reason: {ex.Message}");
+                            }
+
+                            if (!isFileAccessible)
+                                return;
+
+                            //just open the first matching razor file name for simplicity
+                            bool isPartialViewAlreadyOpen = await VS.Documents.IsOpenAsync(foundFiles[0]);
+                            if (!isPartialViewAlreadyOpen)
+                            {
+                                await VS.Documents.OpenAsync(foundFiles[0]);
+                            }
+                            else
+                            {
+                                await VS.Documents.OpenAsync(foundFiles[0]); //select document - set is as active as it is already opened ? 
+                            }
+
+                            await VS.StatusBar.ShowMessageAsync($"Navigated to razor file: {foundFiles[0]}");
+
+                        }
+                    }
+
+                }
+
+        }
+
+
+        private static async Task ProcessHtmlPartialAsync(Solution currentSolution, string textOfSelection)
+        {
+
+            var pattern = @".*@Html.Partial\(""(?<razorfile>.*)""\).*";
+            Match m = Regex.Match(textOfSelection, pattern, RegexOptions.IgnoreCase);
+            if (m.Success)
+
+                if (m.Groups["razorfile"]?.Value != null)
+                {
+                    string razorFileReference = m.Groups["razorfile"].Value;
+
+                    if (!razorFileReference.EndsWith(".vbhml") && !razorFileReference.EndsWith(".cshtml"))
+                    {
+                        razorFileReference += ".cshtml"; //for now - only supporting cshtml files - need to inspect if the solution is using either CS or VB
+                    }
+
+                    if (razorFileReference.Contains("~"))
+                    {
+                        razorFileReference = razorFileReference.Replace("~", "");
+                    }
+                    if (razorFileReference.Contains("/"))
+                    {
+                        razorFileReference = razorFileReference.Split('/').Last(); //only after the file name
+                    }
+                    if (razorFileReference.Contains(".."))
+                    {
+                        razorFileReference = razorFileReference.Replace("..", "");
+                    }
+
+                    if (currentSolution != null)
+                    {
+                        string fullPathOfSolution = currentSolution.FullPath;
+                        //scan for a file with matching file name (we already know it must be a cshtml or vbhtml file)
+                        string[] foundFiles = Directory.GetFiles(new FileInfo(fullPathOfSolution).Directory.FullName, $"{razorFileReference}", SearchOption.AllDirectories);
+                        if (foundFiles?.Length > 0)
+                        {
+                            string fileToOpen = foundFiles[0];
+                            if (Path.GetExtension(fileToOpen)?.ToLower() != ".cshtml" && Path.GetExtension(fileToOpen)?.ToLower() != ".vbhtml")
+                            {
+                                return;
+                            }
+                            //on final check that the file exists on disk 
+
+                            if (!File.Exists(fileToOpen))
+                            {
+                                return;
+                            }
+
+                            // also : check that we are permitted to open the file 
+
+                            bool isFileAccessible = false;
+                            try
+                            {
+                                _ = File.ReadAllText(fileToOpen);
+                                isFileAccessible = true;
+                            }
+                            catch (Exception ex)
+                            {
+                                await VS.StatusBar.ShowMessageAsync($"Could not access the file {fileToOpen}. Reason: {ex.Message}");
+                            }
+
+                            if (!isFileAccessible)
+                                return;
+
+                            //just open the first matching razor file name for simplicity
+                            bool isPartialViewAlreadyOpen = await VS.Documents.IsOpenAsync(foundFiles[0]);
+                            if (!isPartialViewAlreadyOpen)
+                            {
+                                await VS.Documents.OpenAsync(foundFiles[0]);
+                            }
+                            else
+                            {
+                                await VS.Documents.OpenAsync(foundFiles[0]); //select document - set is as active as it is already opened ? 
+                            }
+
+                            await VS.StatusBar.ShowMessageAsync($"Navigated to razor file: {foundFiles[0]}");
+
+                        }
+                    }
+
+                }
+
+        }
+
     }
 }
