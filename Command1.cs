@@ -3,10 +3,14 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using System;
 using System.ComponentModel.Design;
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web.Hosting;
 using Task = System.Threading.Tasks.Task;
 
 namespace ToreAurstadIT.Razor.Navigate
@@ -96,12 +100,14 @@ namespace ToreAurstadIT.Razor.Navigate
 
             DocumentView docView = await VS.Documents.GetActiveDocumentViewAsync();
             if (docView?.TextView == null)
-                return; 
+                return;
             var selection = docView.TextView.Selection;
             if (selection.IsEmpty)
             {
                 return;
             }
+            Solution currentSolution = await VS.Solutions.GetCurrentSolutionAsync();
+
             foreach (var snapshotSpan in selection.SelectedSpans)
             {
                 string textOfSelection = snapshotSpan.GetText();
@@ -117,20 +123,89 @@ namespace ToreAurstadIT.Razor.Navigate
 
                         if (m.Groups["razorfile"]?.Value != null)
                         {
-                            await VS.StatusBar.ShowMessageAsync($"You selected this razor file: {textOfSelection}");
+                            string razorFileReference = m.Groups["razorfile"].Value;
+
+                            if (!razorFileReference.EndsWith(".vbhml") && !razorFileReference.EndsWith(".cshtml"))
+                            {
+                                razorFileReference += ".cshtml"; //for now - only supporting cshtml files - need to inspect if the solution is using either CS or VB
+                            }
+
+                            if (razorFileReference.Contains("~"))
+                            {
+                                razorFileReference = razorFileReference.Replace("~", "");
+                            }
+                            if (razorFileReference.Contains("/"))
+                            {
+                                razorFileReference = razorFileReference.Split('/').Last(); //only after the file name
+                            }
+                            if (razorFileReference.Contains(".."))
+                            {
+                                razorFileReference = razorFileReference.Replace("..", "");
+                            }
+
+                            if (currentSolution != null)
+                            {
+                                string fullPathOfSolution = currentSolution.FullPath;
+                                //scan for a file with matching file name (we already know it must be a cshtml or vbhtml file)
+                                string[] foundFiles = Directory.GetFiles(new FileInfo(fullPathOfSolution).Directory.FullName, $"{razorFileReference}", SearchOption.AllDirectories);
+                                if (foundFiles?.Length > 0)
+                                {
+                                    string fileToOpen = foundFiles[0]; 
+                                    if (Path.GetExtension(fileToOpen)?.ToLower() != ".cshtml" && Path.GetExtension(fileToOpen)?.ToLower() != ".vbhtml")
+                                    {
+                                        return;
+                                    }
+                                    //on final check that the file exists on disk 
+
+                                    if (!File.Exists(fileToOpen))
+                                    {
+                                        return; 
+                                    }
+
+                                    // also : check that we are permitted to open the file 
+
+                                    bool isFileAccessible = false; 
+                                    try
+                                    {
+                                        _ = File.ReadAllText(fileToOpen);
+                                        isFileAccessible = true;
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        await VS.StatusBar.ShowMessageAsync($"Could not access the file {fileToOpen}. Reason: {ex.Message}");
+                                    }
+
+                                    if (!isFileAccessible)
+                                        return;
+
+                                    //just open the first matching razor file name for simplicity
+                                    bool isPartialViewAlreadyOpen = await VS.Documents.IsOpenAsync(foundFiles[0]);
+                                    if (!isPartialViewAlreadyOpen)
+                                    {
+                                        await VS.Documents.OpenAsync(foundFiles[0]);
+                                    }
+                                    else
+                                    {
+                                        await VS.Documents.OpenAsync(foundFiles[0]); //select document - set is as active as it is already opened ? 
+                                    }
+
+                                    await VS.StatusBar.ShowMessageAsync($"Navigated to razor file: {foundFiles[0]}");
+
+                                }
+                            }
                         }
                 }
             }
 
 
-            // Show a message box to prove we were here
-            VsShellUtilities.ShowMessageBox(
-                this.package,
-                message,
-                title,
-                OLEMSGICON.OLEMSGICON_INFO,
-                OLEMSGBUTTON.OLEMSGBUTTON_OK,
-                OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+            //// Show a message box to prove we were here
+            //VsShellUtilities.ShowMessageBox(
+            //    this.package,
+            //    message,
+            //    title,
+            //    OLEMSGICON.OLEMSGICON_INFO,
+            //    OLEMSGBUTTON.OLEMSGBUTTON_OK,
+            //    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
         }
     }
 }
