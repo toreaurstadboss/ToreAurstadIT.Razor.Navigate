@@ -154,54 +154,63 @@ namespace ToreAurstadIT.Razor.Navigate
 
         static string ResolveConstant(string constantExpression, Solution solution)
         {
-            if (constantExpression.Contains("."))
+            try
             {
-                constantExpression = constantExpression.Split('.').Last(); //we are after the member const - peel off class part
-            }
-            var fileWithConstantExpression =
-                (from file
-                in Directory.GetFiles(new FileInfo(solution.FullPath).Directory.FullName, "*.cs", SearchOption.AllDirectories)
-                where GetFileText(file).Contains(constantExpression)
-                select GetFileText(file)).FirstOrDefault();
-            if (!string.IsNullOrWhiteSpace(fileWithConstantExpression))
-            {
-                string pattern = $".*{constantExpression}.*(?<constantvalue>);";
-                Match m = Regex.Match(fileWithConstantExpression, pattern, RegexOptions.IgnoreCase);
-                if (m.Success && m.Groups.Count > 0)
-                {
-                    //TODO: Rewrite - need an easier way to express this - multiple replaces
-                    string constantValue = m.Groups[0].Value;
-                    if (constantValue != null)
-                    {
-                        if (constantValue.Contains("="))
-                        {
-                            constantValue = constantValue.Split('=').Last();                            
-                        }
-                        if (constantValue.Contains("~")){
-                            constantValue = constantValue.Replace("~", "");
-                        }
-                        if (constantValue.Contains(".."))
-                        {
-                            constantValue = constantValue.Replace("..", "");
-                        }
-                        if (constantValue.Contains("/"))
-                        {
-                            constantValue = constantValue.Split('/').Last(); 
-                        }
-                        if (constantValue.Contains("\""))
-                        {
-                            constantValue = constantValue.Replace("\"", string.Empty);
-                        }
-                        if (constantValue.Contains(";"))
-                        {
-                            constantValue = constantValue.Replace(";", "");
-                        }
 
-                        return constantValue.Trim();
+                if (constantExpression.Contains("."))
+                {
+                    constantExpression = constantExpression.Split('.').Last(); //we are after the member const - peel off class part
+                }
+                var fileWithConstantExpression =
+                    (from file
+                    in Directory.GetFiles(new FileInfo(solution.FullPath).Directory.FullName, "*.cs", SearchOption.AllDirectories)
+                     where GetFileText(file).Contains(constantExpression)
+                     select GetFileText(file)).FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(fileWithConstantExpression))
+                {
+                    string pattern = $".*{constantExpression}.*(?<constantvalue>);";
+                    Match m = Regex.Match(fileWithConstantExpression, pattern, RegexOptions.IgnoreCase);
+                    if (m.Success && m.Groups.Count > 0)
+                    {
+                        //TODO: Rewrite - need an easier way to express this - multiple replaces
+                        string constantValue = m.Groups[0].Value;
+                        if (constantValue != null)
+                        {
+                            if (constantValue.Contains("="))
+                            {
+                                constantValue = constantValue.Split('=').Last();
+                            }
+                            if (constantValue.Contains("~"))
+                            {
+                                constantValue = constantValue.Replace("~", "");
+                            }
+                            if (constantValue.Contains(".."))
+                            {
+                                constantValue = constantValue.Replace("..", "");
+                            }
+                            if (constantValue.Contains("/"))
+                            {
+                                constantValue = constantValue.Split('/').Last();
+                            }
+                            if (constantValue.Contains("\""))
+                            {
+                                constantValue = constantValue.Replace("\"", string.Empty);
+                            }
+                            if (constantValue.Contains(";"))
+                            {
+                                constantValue = constantValue.Replace(";", "");
+                            }
+
+                            return constantValue.Trim();
+                        }
                     }
                 }
+                return null;
             }
-            return null;
+            catch (Exception ex)
+            {
+                return null;
+            }
         }
     
     private static async Task ProcessRenderPartialAsync(Solution currentSolution, string textOfSelection)
@@ -389,7 +398,7 @@ namespace ToreAurstadIT.Razor.Navigate
 
         private static string AdjustRazorFileReference(string razorFileReference, Solution currentSolution)
         {
-            if (razorFileReference.Contains("\"") && razorFileReference.EndsWith(".vbhml") && !razorFileReference.EndsWith(".cshtml"))
+            if (razorFileReference.Contains("\"") && !razorFileReference.EndsWith(".cshtml", StringComparison.CurrentCultureIgnoreCase))
             {
                 razorFileReference += ".cshtml"; //for now - only supporting cshtml files - need to inspect if the solution is using either CS or VB
             }
@@ -421,6 +430,19 @@ namespace ToreAurstadIT.Razor.Navigate
                 {
                     razorFileReference = foundConstantValue;
                 }
+            }
+            else
+            {
+                //trim away illeagal character '"' in path - we are soon going to scan for file names 
+
+                razorFileReference = razorFileReference.Replace("\"", "");
+            }
+
+            //once more - since we are going to use Directory.GetFiles - we should suffix the file extension so we can actually find the file with the given razor file name 
+
+            if (!razorFileReference.EndsWith(".cshtml", StringComparison.CurrentCultureIgnoreCase))
+            {
+                razorFileReference += ".cshtml";
             }
 
             return razorFileReference;
