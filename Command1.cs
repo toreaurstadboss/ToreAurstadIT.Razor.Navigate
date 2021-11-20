@@ -118,9 +118,10 @@ namespace ToreAurstadIT.Razor.Navigate
                     continue;
                 }
 
-                bool isUrlContentExpression = textOfSelection.Contains("@Url.Content");
-                bool isHtmlPartialExpression = textOfSelection.Contains("@Html.Partial");
-                bool isHtmlRenderPartialExpression = textOfSelection.Contains(@"Html.RenderPartial");
+                bool isUrlContentExpression = textOfSelection.Contains("Url.Content");
+                bool isHtmlPartialExpression = textOfSelection.Contains("Html.Partial");
+                bool isHtmlRenderPartialExpression = textOfSelection.Contains("Html.RenderPartial");
+                bool isUrlActionExpression = textOfSelection.Contains("Url.Action"); 
               
                 if (isHtmlPartialExpression)
                 {
@@ -133,7 +134,12 @@ namespace ToreAurstadIT.Razor.Navigate
                 else if (isHtmlRenderPartialExpression)
                 {
                     await ProcessRenderPartialAsync(currentSolution, textOfSelection);
-                }                
+                } 
+                else if (isUrlActionExpression)
+                {
+                    // TODO: support the scenario where we have parentheses around @Url.Action and also constants for controller name (resolve controller name constant value)
+                    await ProcessUrlActionAsync(currentSolution, textOfSelection);
+                }
             }
 
             #region generic_template_msgbox
@@ -297,14 +303,20 @@ namespace ToreAurstadIT.Razor.Navigate
 
         private async Task ProcessUrlContentAsync(Solution currentSolution, string textOfSelection)
         {
-            var pattern = @".*@Url.Content\((?<razorfile>.*)\).*";
+            var pattern = @".*Url.Content\((?<razorfile>.*)\).*";
             await GenericProcessMvcHtmlHelper(pattern, currentSolution, textOfSelection, ".js");
+        }
+
+        private async Task ProcessUrlActionAsync(Solution currentSolution, string textOfSelection)
+        {
+            var pattern = @".*Url.Action\((?<razorfile>.*)\).*";
+            await GenericProcessMvcHtmlHelper(pattern, currentSolution, textOfSelection, ".cs");
         }
 
 
         private async Task ProcessHtmlPartialAsync(Solution currentSolution, string textOfSelection)
         {
-            var pattern = @".*@Html.Partial\((?<razorfile>.*)\).*";
+            var pattern = @".*Html.Partial\((?<razorfile>.*)\).*";
             await GenericProcessMvcHtmlHelper(pattern, currentSolution, textOfSelection, ".cshtml");
         }
 
@@ -443,6 +455,19 @@ namespace ToreAurstadIT.Razor.Navigate
                         }
                     }
                 }
+
+                if (expectedFileExtension == ".cs")
+                {
+                    //in case we expect a ".cs" file it must be a Url.Action or Html.ActionLink - try to find out which controller it is 
+
+                    if (razorFileReference.Contains(","))
+                    {
+                        //in case the file reference contains a comma, we must reference the controller name at second parameter - so look for anything
+                        //named that + 'controller'
+                        razorFileReference = razorFileReference.Split(',')[1].Trim().Replace("\"", string.Empty) + "Controller";
+                    }
+                }
+
                 if (!razorFileReference.Contains(expectedFileExtension)) { 
                     razorFileReference += expectedFileExtension; //for now - only supporting cshtml files - need to inspect if the solution is using either CS or VB
                 }
