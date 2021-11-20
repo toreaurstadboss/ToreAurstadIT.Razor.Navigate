@@ -1,23 +1,30 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
-  <Metadata>
-    <Identity Id="ToreAurstadIT.Razor.Navigate.761f9f74-873b-4767-81f6-c2f6f20075f3" Version="1.0" Language="en-US" Publisher="Tore Aurstad" />
-    <DisplayName>ToreAurstadIT.Razor.Navigate</DisplayName>
-    <Description>Empty VSIX Project.</Description>
-  </Metadata>
-  <Installation>
-    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0, 18.0)">
-      <ProductArchitecture>amd64</ProductArchitecture>
-    </InstallationTarget>
-  </Installation>
-  <Dependencies>
-    <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" d:Source="Manual" Version="[4.5,)" />
-    <Dependency Id="Microsoft.VisualStudio.MPF.16.0" DisplayName="Visual Studio MPF 16.0" d:Source="Installed" Version="[16.0,17.0)" />
-  </Dependencies>
-  <Prerequisites>
-    <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[17.0,18.0)" DisplayName="Visual Studio core editor" />
-  </Prerequisites>
-  <Assets>
-    <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
-  </Assets>
+    <Metadata>
+        <Identity Id="ToreAurstadIT.Razor.Navigate.761f9f74-873b-4767-81f6-c2f6f20075f3" Version="1.0" Language="en-US" Publisher="Tore Aurstad" />
+        <DisplayName>ToreAurstadIT.Razor.Navigate</DisplayName>
+        <Description xml:space="preserve">A simple navigation tool for MVC based solutions. Scans razor files (supporting cshtml files) where you can select the reference of a partial in form of a text of a @Html.Partial or @Html.RenderPartial in the cshtml razor view (parent view containing the partial) and then go to that partial (it can be a constant expression or a string literal) by either directly going to the razor view, or if there are several files matching, choose the razor view to navigate to among these.
+To perform the navigation tool, select the text containing the reference to the partial view hit Ctrl+W, Ctrl+N (vieW, Navigate).
+
+Icon attribute for this VSIX package icon:
+&lt;div&gt;Icons made by &lt;a href="https://www.flaticon.com/authors/smashingstocks" title="smashingstocks"&gt;smashingstocks&lt;/a&gt; from &lt;a href="https://www.flaticon.com/" title="Flaticon"&gt;www.flaticon.com&lt;/a&gt;&lt;/div&gt;</Description>
+        <MoreInfo>https://github.com/toreaurstadboss/ToreAurstadIT.Razor.Navigate</MoreInfo>
+        <License>Licence.txt</License>
+        <Icon>Resources\signpost2.ico</Icon>
+    </Metadata>
+    <Installation>
+        <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0, 18.0)">
+            <ProductArchitecture>amd64</ProductArchitecture>
+        </InstallationTarget>
+    </Installation>
+    <Dependencies>
+        <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" d:Source="Manual" Version="[4.5,)" />
+        <Dependency Id="Microsoft.VisualStudio.MPF.16.0" DisplayName="Visual Studio MPF 16.0" d:Source="Installed" Version="[16.0,17.0)" />
+    </Dependencies>
+    <Prerequisites>
+        <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[17.0,18.0)" DisplayName="Visual Studio core editor" />
+    </Prerequisites>
+    <Assets>
+        <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
+    </Assets>
 </PackageManifest>

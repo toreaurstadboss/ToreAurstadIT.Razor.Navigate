@@ -8,7 +8,6 @@
                         toolkit:Themes.UseVsTheme="True"
                         WindowStyle="ToolWindow"
                         mc:Ignorable="d"
-                        Title="Ctrl+W, Ctrl+N pressed : Choose razor view to open next"
                         Width="600"
                         Height="180"
                         d:DesignHeight="180"
@@ -21,9 +20,9 @@
         </Grid.RowDefinitions>
         <TextBlock Margin="2" Grid.Row="0" FontWeight="Bold" FontFamily="Consolas" Padding="4" Background="Black" Foreground="White" Text="Choose MVC partial view to open"></TextBlock>
         <ScrollViewer Margin="2" Grid.Row="1" MaxHeight="80" VerticalScrollBarVisibility="Visible">
-            <ListBox x:Name="lstBoxCandidateFiles" MinHeight="90" ItemsSource="{Binding CandidateFiles}" SelectedItem="{Binding SelectedCandidateFile, UpdateSourceTrigger=PropertyChanged}"></ListBox>
+            <ListBox MinHeight="90" ItemsSource="{Binding CandidateFiles}" SelectedItem="{Binding SelectedCandidateFile, UpdateSourceTrigger=PropertyChanged}"></ListBox>
         </ScrollViewer>
-        <Button x:Name="CloseBtn" Click="CloseButtonClick" Grid.Row="2" Foreground="Black" FontFamily="Consolas" Margin="2">
+        <Button x:Name="CloseBtn" Click="Button_Click" Grid.Row="2" Foreground="Black" FontFamily="Consolas" Margin="2">
             Open selected razor view =>
         </Button>
             

@@ -62,7 +62,23 @@
     <Compile Include="ToolWindows\ChoosePartialViewModel.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Resources\signpost2.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Resource Include="Resources\guidepost.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Command1_5.png" />
+    <Resource Include="Resources\Command1_4.png" />
+    <Resource Include="Resources\Command1_3.png" />
+    <Resource Include="Resources\Command1_2.png" />
+    <Resource Include="Resources\Command1_1.png" />
+    <Resource Include="Resources\Command1_0.png" />
     <None Include="Key.snk" />
+    <Content Include="Monikers.imagemanifest">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
     <None Include="source.extension.vsixmanifest">
       <SubType>Designer</SubType>
     </None>
@@ -88,7 +104,15 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Resources\Command1.png" />
+    <Content Include="guidepost.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Content Include="Licence.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <Resource Include="Resources\Command1.png" />
     <Content Include="Resources\Command1Package.ico" />
   </ItemGroup>
   <ItemGroup>
