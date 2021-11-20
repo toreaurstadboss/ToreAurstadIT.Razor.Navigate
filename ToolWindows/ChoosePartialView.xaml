@@ -1,0 +1,31 @@
+﻿<platform:DialogWindow  x:Class="ToreAurstadIT.Razor.Navigate.ChoosePartialView"
+                        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                        xmlns:platform="clr-namespace:Microsoft.VisualStudio.PlatformUI;assembly=Microsoft.VisualStudio.Shell.15.0"
+                        xmlns:toolkit="clr-namespace:Community.VisualStudio.Toolkit;assembly=Community.VisualStudio.Toolkit"
+                        toolkit:Themes.UseVsTheme="True"
+                        WindowStyle="ToolWindow"
+                        mc:Ignorable="d"
+                        Title="Ctrl+W, Ctrl+N pressed : Choose razor view to open next"
+                        Width="600"
+                        Height="180"
+                        d:DesignHeight="180"
+                        d:DesignWidth="400">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"  />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock Margin="2" Grid.Row="0" FontWeight="Bold" FontFamily="Consolas" Padding="4" Background="Black" Foreground="White" Text="Choose MVC partial view to open"></TextBlock>
+        <ScrollViewer Margin="2" Grid.Row="1" MaxHeight="80" VerticalScrollBarVisibility="Visible">
+            <ListBox x:Name="lstBoxCandidateFiles" MinHeight="90" ItemsSource="{Binding CandidateFiles}" SelectedItem="{Binding SelectedCandidateFile, UpdateSourceTrigger=PropertyChanged}"></ListBox>
+        </ScrollViewer>
+        <Button x:Name="CloseBtn" Click="CloseButtonClick" Grid.Row="2" Foreground="Black" FontFamily="Consolas" Margin="2">
+            Open selected razor view =>
+        </Button>
+            
+    </Grid>
+</platform:DialogWindow>
