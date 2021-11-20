@@ -117,16 +117,26 @@ namespace ToreAurstadIT.Razor.Navigate
                 {
                     continue;
                 }
-                if (textOfSelection.Contains("@Html.Partial"))
+
+                bool isUrlContentExpression = textOfSelection.Contains("@Url.Content");
+                bool isHtmlPartialExpression = textOfSelection.Contains("@Html.Partial");
+                bool isHtmlRenderPartialExpression = textOfSelection.Contains(@"Html.RenderPartial");
+              
+                if (isHtmlPartialExpression)
                 {
                     await ProcessHtmlPartialAsync(currentSolution, textOfSelection);
                 }
-                else if (textOfSelection.Contains(@"Html.RenderPartial"))
+                else if (isUrlContentExpression)
+                {
+                    await ProcessUrlContentAsync(currentSolution, textOfSelection);
+                }
+                else if (isHtmlRenderPartialExpression)
                 {
                     await ProcessRenderPartialAsync(currentSolution, textOfSelection);
-                }
+                }                
             }
 
+            #region generic_template_msgbox
 
             //// Show a message box to prove we were here
             //VsShellUtilities.ShowMessageBox(
@@ -136,6 +146,8 @@ namespace ToreAurstadIT.Razor.Navigate
             //    OLEMSGICON.OLEMSGICON_INFO,
             //    OLEMSGBUTTON.OLEMSGBUTTON_OK,
             //    OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+            #endregion 
+
         }
 
         // Read the contents of the file.  
@@ -225,7 +237,7 @@ namespace ToreAurstadIT.Razor.Navigate
                 {
                     string razorFileReference = m.Groups["razorfile"].Value;
 
-                    razorFileReference = AdjustRazorFileReference(razorFileReference, currentSolution);                    
+                    razorFileReference = AdjustRazorFileReference(razorFileReference, currentSolution, ".cshtml");                    
 
                     if (currentSolution != null)
                     {
@@ -283,11 +295,21 @@ namespace ToreAurstadIT.Razor.Navigate
 
         }
 
+        private async Task ProcessUrlContentAsync(Solution currentSolution, string textOfSelection)
+        {
+            var pattern = @".*@Url.Content\((?<razorfile>.*)\).*";
+            await GenericProcessMvcHtmlHelper(pattern, currentSolution, textOfSelection, ".js");
+        }
+
 
         private async Task ProcessHtmlPartialAsync(Solution currentSolution, string textOfSelection)
         {
-
             var pattern = @".*@Html.Partial\((?<razorfile>.*)\).*";
+            await GenericProcessMvcHtmlHelper(pattern, currentSolution, textOfSelection, ".cshtml");
+        }
+
+        private async Task GenericProcessMvcHtmlHelper(string pattern, Solution currentSolution, string textOfSelection, string expectedFileExtension)
+        {
             Match m = Regex.Match(textOfSelection, pattern, RegexOptions.IgnoreCase);
             if (m.Success)
 
@@ -295,7 +317,7 @@ namespace ToreAurstadIT.Razor.Navigate
                 {
                     string razorFileReference = m.Groups["razorfile"].Value;
 
-                    razorFileReference = AdjustRazorFileReference(razorFileReference, currentSolution);
+                    razorFileReference = AdjustRazorFileReference(razorFileReference, currentSolution, expectedFileExtension);
 
                     if (currentSolution != null)
                     {
@@ -305,11 +327,14 @@ namespace ToreAurstadIT.Razor.Navigate
                         if (foundFiles?.Length > 0)
                         {
                             string fileToOpen = foundFiles[0];
-                            //double check that we got correct file extension 
-                            if (Path.GetExtension(fileToOpen)?.ToLower() != ".cshtml" && Path.GetExtension(fileToOpen)?.ToLower() != ".vbhtml")
-                            {
-                                return;
-                            }
+
+                            //CHANGE: allowing other file types now, since we support Url.Content
+
+                            ////double check that we got correct file extension 
+                            //if (Path.GetExtension(fileToOpen)?.ToLower() != ".cshtml" && Path.GetExtension(fileToOpen)?.ToLower() != ".vbhtml")
+                            //{
+                            //    return;
+                            //}
                             //on final check that the file exists on disk 
 
                             if (!File.Exists(fileToOpen))
@@ -354,7 +379,7 @@ namespace ToreAurstadIT.Razor.Navigate
                             }
                             else if (foundFiles.Length > 1)
                             {
-                               string selectedCandidateFile =  await DisplayRazorFileViewChooserAsync(foundFiles);
+                                string selectedCandidateFile = await DisplayRazorFileViewChooserAsync(foundFiles);
                                 if (!string.IsNullOrWhiteSpace(selectedCandidateFile))
                                 {
                                     await VS.Documents.OpenAsync(selectedCandidateFile); //open the candidate file the end user selected
@@ -365,7 +390,6 @@ namespace ToreAurstadIT.Razor.Navigate
                         }
                     }
                 }
-
         }
 
         private async Task<string> DisplayRazorFileViewChooserAsync(string[] foundFiles)
@@ -396,11 +420,32 @@ namespace ToreAurstadIT.Razor.Navigate
             return vm.CandidateFile;
         }
 
-        private static string AdjustRazorFileReference(string razorFileReference, Solution currentSolution)
+        private static string AdjustRazorFileReference(string razorFileReference, Solution currentSolution, string expectedFileExtension)
         {
-            if (razorFileReference.Contains("\"") && !razorFileReference.EndsWith(".cshtml", StringComparison.CurrentCultureIgnoreCase))
+            //remove dot-dot parent folder reference - this is done so we can analyze the file extension  
+
+            if (razorFileReference.Contains(".."))
             {
-                razorFileReference += ".cshtml"; //for now - only supporting cshtml files - need to inspect if the solution is using either CS or VB
+                razorFileReference = razorFileReference.Replace("..", "");
+            }
+
+            if (razorFileReference.Contains("\"") && !razorFileReference.EndsWith(expectedFileExtension, StringComparison.CurrentCultureIgnoreCase))
+            {
+                if (expectedFileExtension == ".js")
+                {
+                    //special case analyse if we actually use Url.Content with an image instead - grab hold of extension 
+                    if (razorFileReference.Contains("."))
+                    {
+                        string fileExtension = razorFileReference.Split('.')[1].Replace("\"", string.Empty);
+                        if (fileExtension.Length >= 3)
+                        {
+                            expectedFileExtension = fileExtension.Substring(0, 3); //only handling the case with three letter extension file names for now
+                        }
+                    }
+                }
+                if (!razorFileReference.Contains(expectedFileExtension)) { 
+                    razorFileReference += expectedFileExtension; //for now - only supporting cshtml files - need to inspect if the solution is using either CS or VB
+                }
             }
 
             if (razorFileReference.Contains("~"))
@@ -410,11 +455,7 @@ namespace ToreAurstadIT.Razor.Navigate
             if (razorFileReference.Contains("/"))
             {
                 razorFileReference = razorFileReference.Split('/').Last(); //only after the file name
-            }
-            if (razorFileReference.Contains(".."))
-            {
-                razorFileReference = razorFileReference.Replace("..", "");
-            }
+            }            
             if (razorFileReference.Contains(','))
             {
                 razorFileReference = razorFileReference.Split(',').First(); //usually we pass in Model as the next argument or other arguments such as controller name - we are after the name of the partial
@@ -440,10 +481,12 @@ namespace ToreAurstadIT.Razor.Navigate
 
             //once more - since we are going to use Directory.GetFiles - we should suffix the file extension so we can actually find the file with the given razor file name 
 
-            if (!razorFileReference.EndsWith(".cshtml", StringComparison.CurrentCultureIgnoreCase))
-            {
-                razorFileReference += ".cshtml";
-            }
+            //now supporting other file formats too, like .js files 
+
+            //if (!razorFileReference.EndsWith(".cshtml", StringComparison.CurrentCultureIgnoreCase))
+            //{
+            //    razorFileReference += ".cshtml";
+            //}
 
             return razorFileReference;
         }
