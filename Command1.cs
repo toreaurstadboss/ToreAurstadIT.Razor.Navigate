@@ -309,7 +309,7 @@ namespace ToreAurstadIT.Razor.Navigate
 
         private async Task ProcessUrlActionAsync(Solution currentSolution, string textOfSelection)
         {
-            var pattern = @".*Url.Action\((?<razorfile>.*)\).*";
+            var pattern = @".*Url.Action\((?<razorfile>.*).*";
             await GenericProcessMvcHtmlHelper(pattern, currentSolution, textOfSelection, ".cs");
         }
 
@@ -489,7 +489,11 @@ namespace ToreAurstadIT.Razor.Navigate
                 }
             }
 
-            if (razorFileReference.Contains("~"))
+            var replaceRegex = new Regex("['[~()`]");
+
+            razorFileReference = replaceRegex.Replace(razorFileReference, string.Empty); //do some clean up of illeagal chars
+
+            if (razorFileReference.Contains("[~"))
             {
                 razorFileReference = razorFileReference.Replace("~", "");
             }
