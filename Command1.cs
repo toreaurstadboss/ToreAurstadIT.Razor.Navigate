@@ -243,7 +243,7 @@ namespace ToreAurstadIT.Razor.Navigate
                 {
                     string razorFileReference = m.Groups["razorfile"].Value;
 
-                    razorFileReference = AdjustRazorFileReference(razorFileReference, currentSolution, ".cshtml");                    
+                    razorFileReference = await AdjustRazorFileReference(razorFileReference, currentSolution, ".cshtml");                    
 
                     if (currentSolution != null)
                     {
@@ -329,7 +329,7 @@ namespace ToreAurstadIT.Razor.Navigate
                 {
                     string razorFileReference = m.Groups["razorfile"].Value;
 
-                    razorFileReference = AdjustRazorFileReference(razorFileReference, currentSolution, expectedFileExtension);
+                    razorFileReference = await AdjustRazorFileReference(razorFileReference, currentSolution, expectedFileExtension);
 
                     if (currentSolution != null)
                     {
@@ -432,7 +432,7 @@ namespace ToreAurstadIT.Razor.Navigate
             return vm.CandidateFile;
         }
 
-        private static string AdjustRazorFileReference(string razorFileReference, Solution currentSolution, string expectedFileExtension)
+        private static async Task<string> AdjustRazorFileReference(string razorFileReference, Solution currentSolution, string expectedFileExtension)
         {
             //remove dot-dot parent folder reference - this is done so we can analyze the file extension  
 
@@ -464,7 +464,23 @@ namespace ToreAurstadIT.Razor.Navigate
                     {
                         //in case the file reference contains a comma, we must reference the controller name at second parameter - so look for anything
                         //named that + 'controller'
-                        razorFileReference = razorFileReference.Split(',')[1].Trim().Replace("\"", string.Empty) + "Controller";
+
+                        string[] razorFileReferenceArgs = razorFileReference.Split(',');
+                        if (razorFileReferenceArgs.Count() > 1)
+                        {
+                            razorFileReference = razorFileReferenceArgs[1] + "Controller";
+                        }
+                        else if (razorFileReferenceArgs.Count() == 0)
+                        {
+                            DocumentView currentDoc = await VS.Documents.GetActiveDocumentViewAsync();
+                            if (currentDoc != null && !string.IsNullOrWhiteSpace(currentDoc.FilePath))
+                            {
+                                //MVC convention - if we only got the name of the action to navigate to,
+                                //resolved parent folder which is equal to the controller name actually
+                                var currentDir = new DirectoryInfo(currentDoc.FilePath).Parent.Name;
+                                razorFileReference = currentDir + "Controller";
+                            }
+                        }
                     }
                 }
 
@@ -503,6 +519,10 @@ namespace ToreAurstadIT.Razor.Navigate
 
                 razorFileReference = razorFileReference.Replace("\"", "");
             }
+
+            //lets also trim here - dont want trailing or preceeding whitespace. 
+
+            razorFileReference = razorFileReference?.Trim(); 
 
             //once more - since we are going to use Directory.GetFiles - we should suffix the file extension so we can actually find the file with the given razor file name 
 
