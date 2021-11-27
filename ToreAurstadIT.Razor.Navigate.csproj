@@ -79,6 +79,7 @@
     <Content Include="Monikers.imagemanifest">
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
+    <None Include="Solution Items\Readme.md" />
     <None Include="source.extension.vsixmanifest">
       <SubType>Designer</SubType>
     </None>
