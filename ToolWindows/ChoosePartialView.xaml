@@ -9,7 +9,7 @@
                         WindowStyle="ToolWindow"
                         mc:Ignorable="d"
                         Width="600"
-                        Height="400"
+                        Height="200"
                         d:DesignHeight="180"
                         d:DesignWidth="400">
     <Grid>

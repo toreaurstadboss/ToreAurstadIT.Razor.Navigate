@@ -1,7 +1,11 @@
 ﻿using Community.VisualStudio.Toolkit;
 using Microsoft.Internal.VisualStudio.PlatformUI;
+using Microsoft.VisualStudio.ComponentModelHost;
+using Microsoft.VisualStudio.Editor;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.VisualStudio.Text;
+using Microsoft.VisualStudio.Threading;
 using System;
 using System.ComponentModel.Design;
 using System.Diagnostics;
@@ -231,7 +235,7 @@ namespace ToreAurstadIT.Razor.Navigate
             }
         }
     
-    private static async Task ProcessRenderPartialAsync(Solution currentSolution, string textOfSelection)
+    private async Task ProcessRenderPartialAsync(Solution currentSolution, string textOfSelection)
         {
             //TODO: we should also support the case where we do not pass in const expressions, i.e double quotes are present
 
@@ -243,7 +247,9 @@ namespace ToreAurstadIT.Razor.Navigate
                 {
                     string razorFileReference = m.Groups["razorfile"].Value;
 
-                    razorFileReference = await AdjustRazorFileReference(razorFileReference, currentSolution, ".cshtml");                    
+                    (string resultPartOne, string resultPartTwo) = await AdjustRazorFileReference(razorFileReference, currentSolution, ".cshtml");                    
+                    razorFileReference = resultPartOne;
+                    string searchTermLookup = resultPartTwo;
 
                     if (currentSolution != null)
                     {
@@ -290,7 +296,7 @@ namespace ToreAurstadIT.Razor.Navigate
                             else
                             {
                                 await VS.Documents.OpenAsync(foundFiles[0]); //select document - set is as active as it is already opened ? 
-                            }
+                            }                         
 
                             await VS.StatusBar.ShowMessageAsync($"Navigated to razor file: {foundFiles[0]}");
 
@@ -329,7 +335,10 @@ namespace ToreAurstadIT.Razor.Navigate
                 {
                     string razorFileReference = m.Groups["razorfile"].Value;
 
-                    razorFileReference = await AdjustRazorFileReference(razorFileReference, currentSolution, expectedFileExtension);
+                    (string resultPartOne, string resultPartTwo) = await AdjustRazorFileReference(razorFileReference, currentSolution, expectedFileExtension);
+
+                    razorFileReference = resultPartOne;
+                    string searchTermToLookFor = resultPartTwo;
 
                     if (currentSolution != null)
                     {
@@ -370,6 +379,8 @@ namespace ToreAurstadIT.Razor.Navigate
                             if (!isFileAccessible)
                                 return;
 
+                            bool isFileOpened = false;
+
                             if (foundFiles.Length == 1)
                             {
 
@@ -381,10 +392,12 @@ namespace ToreAurstadIT.Razor.Navigate
                                 {
 
                                     await VS.Documents.OpenAsync(foundFiles[0]);
+                                    isFileOpened = true;
                                 }
                                 else
                                 {
                                     await VS.Documents.OpenAsync(foundFiles[0]); //select document - set is as active as it is already opened ? 
+                                    isFileOpened = true;
                                 }
 
                                 await VS.StatusBar.ShowMessageAsync($"Navigated to razor file: {foundFiles[0]}");
@@ -395,13 +408,54 @@ namespace ToreAurstadIT.Razor.Navigate
                                 if (!string.IsNullOrWhiteSpace(selectedCandidateFile))
                                 {
                                     await VS.Documents.OpenAsync(selectedCandidateFile); //open the candidate file the end user selected
+                                    isFileOpened = true;
 
                                 } //if 
+                            }
+
+                            if (isFileOpened)
+                            {
+                                await NavigateToSearchTermInFileAsync(searchTermToLookFor);
                             }
 
                         }
                     }
                 }
+        }
+
+        private async Task NavigateToSearchTermInFileAsync(string searchTermToLookFor)
+        {
+            if (string.IsNullOrWhiteSpace(searchTermToLookFor))
+            {
+                return;
+            }
+            searchTermToLookFor = searchTermToLookFor.Trim().Replace("\"", string.Empty); //remove special chars
+
+            var replaceRegex = new Regex("['[~()`]");
+
+            searchTermToLookFor = replaceRegex.Replace(searchTermToLookFor, string.Empty); //do some more clean up of illeagal chars
+
+
+            //check if we should also search for a term in the file 
+            var currentDoc = await VS.Documents.GetActiveDocumentViewAsync();
+            if (currentDoc != null && currentDoc.TextView.TextViewLines != null)
+            {
+                var snapshot = currentDoc.TextView.TextBuffer.CurrentSnapshot.GetText();
+
+                if (snapshot != null)
+                {
+                    if (snapshot.Contains(searchTermToLookFor))
+                    {
+                        int textPosition = snapshot.IndexOf(searchTermToLookFor);
+                        if (textPosition > 0)
+                        {
+                            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
+                            currentDoc.TextView.Caret.MoveTo(new SnapshotPoint(currentDoc.TextView.TextBuffer.CurrentSnapshot, textPosition));
+                            currentDoc.TextView.Caret.EnsureVisible();
+                        }
+                    }
+                }
+            }
         }
 
         private async Task<string> DisplayRazorFileViewChooserAsync(string[] foundFiles)
@@ -432,8 +486,12 @@ namespace ToreAurstadIT.Razor.Navigate
             return vm.CandidateFile;
         }
 
-        private static async Task<string> AdjustRazorFileReference(string razorFileReference, Solution currentSolution, string expectedFileExtension)
+        private static async Task<(string, string)> AdjustRazorFileReference(string razorFileReference,
+            Solution currentSolution, string expectedFileExtension)
         {
+
+            string searchTermInsideFile = null; 
+
             //remove dot-dot parent folder reference - this is done so we can analyze the file extension  
 
             if (razorFileReference.Contains(".."))
@@ -469,6 +527,8 @@ namespace ToreAurstadIT.Razor.Navigate
                         if (razorFileReferenceArgs.Count() > 1)
                         {
                             razorFileReference = razorFileReferenceArgs[1] + "Controller";
+
+                            searchTermInsideFile = razorFileReferenceArgs[0]; //the action name should be looked up inside the file
                         }
                         else if (razorFileReferenceArgs.Count() == 0)
                         {
@@ -479,6 +539,8 @@ namespace ToreAurstadIT.Razor.Navigate
                                 //resolved parent folder which is equal to the controller name actually
                                 var currentDir = new DirectoryInfo(currentDoc.FilePath).Parent.Name;
                                 razorFileReference = currentDir + "Controller";
+
+                                searchTermInsideFile = razorFileReferenceArgs[0]; 
                             }
                         }
                     }
@@ -492,6 +554,11 @@ namespace ToreAurstadIT.Razor.Navigate
             var replaceRegex = new Regex("['[~()`]");
 
             razorFileReference = replaceRegex.Replace(razorFileReference, string.Empty); //do some clean up of illeagal chars
+
+            if (!string.IsNullOrWhiteSpace(searchTermInsideFile))
+            {
+                searchTermInsideFile = replaceRegex.Replace(searchTermInsideFile, string.Empty).Trim();
+            }
 
             if (razorFileReference.Contains("[~"))
             {
@@ -537,7 +604,7 @@ namespace ToreAurstadIT.Razor.Navigate
             //    razorFileReference += ".cshtml";
             //}
 
-            return razorFileReference;
+            return (razorFileReference, searchTermInsideFile);
         }
     }
 }
